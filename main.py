@@ -1,5 +1,6 @@
 
 from fastapi import FastAPI
+import keys
 import uvicorn 
 
 app = FastAPI()
@@ -13,7 +14,15 @@ async def root():
 @app.get("/jwks")
 async def get_jwks():
     """ reply with keys """
-    return {"keys": []}
+    # init keyring
+    key_ring = keys.Key_Ring()
+    key_ring.create_new_jwt()
+    key_ring.create_new_jwt()
+    key_ring.create_new_jwt()
+    key_ring.create_new_jwt()
+    key_ring.create_new_jwt()
+    key_ring.create_new_jwt()
+    return {"keys": key_ring}
 
 if __name__ == "__main__":
     """ run unicorn web server using app on 8080 """

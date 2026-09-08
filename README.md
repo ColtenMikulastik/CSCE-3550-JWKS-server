@@ -8,7 +8,9 @@
 - [x] 0.1.0: Basic FastAPI Server Setup
     - configured FastAPI
     - connect to uvicorn
-- [ ] 0.2.0: Generate RSA Keys
+- [x] 0.2.0: Generate RSA Keys
+    - complete RSA generation
+    - basic JWT creation
 - [ ] 0.3.0: Add Key Expiry Logic
 - [ ] 0.4.0: Authentication Endpoint
 - [ ] 0.5.0: Complete Implementation & Testing
