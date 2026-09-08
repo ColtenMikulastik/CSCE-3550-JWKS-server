@@ -6,6 +6,16 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 PUBLIC_EXPONENT = 65537
 KEY_SIZE = 2048
 
+class Key_Ring:
+    """ class to store jwt keys and operate on them """
+    def __init__(self):
+        self.key_list = list()
+    
+    def create_new_key(self, kid):
+        """add key to keyring with kid"""
+
+
+
 def generate_rsa_key():
     """ returns RSA private key, with which the public can be generated"""
     private_key = rsa.generate_private_key(

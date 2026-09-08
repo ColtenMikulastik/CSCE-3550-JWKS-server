@@ -1,18 +1,20 @@
 
 from fastapi import FastAPI
+import uvicorn 
 
 app = FastAPI()
 
-keys = {
-    "message": "Hey here are all the keys",
-    "number_of_keys": 2,
-    "key_1": "abcedfg",
-    "key_2": "abcedfg",
-}
-
-
 @app.get("/")
 async def root():
-    return keys
+    """ index, let them know whats up """
+    return { "message" : "JWKS service running..." }
     
 
+@app.get("/jwks")
+async def get_jwks():
+    """ reply with keys """
+    return {"keys": []}
+
+if __name__ == "__main__":
+    """ run unicorn web server using app on 8080 """
+    uvicorn.run(app, host="127.0.0.1", port=8080)
