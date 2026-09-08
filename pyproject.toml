@@ -7,7 +7,9 @@ authors = [
     { name = "Colten Mikulastik", email = "mikulastikc@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "fastapi[standard]>=0.141.1",
+]
 
 [project.scripts]
 csce-3550-jwks-server = "csce_3550_jwks_server:main"
