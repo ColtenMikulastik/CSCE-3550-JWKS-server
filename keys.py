@@ -1,5 +1,6 @@
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+import datetime as dt
 import uuid
 import base64
 
@@ -9,10 +10,14 @@ KEY_SIZE = 2048
 
 class Key_Ring:
     """ class to store jwt keys and operate on them """
-    def __init__(self):
+    # structure: list of JWKs(dict)
+    def __init__(self, expiry=24):
         self.key_list = list()
+        self.expiry = expiry
+        # store as ADT, decode when read, print pretty, but also comparisons will be easier
+        self.time_stamp = dt.datetime.now(dt.timezone.utc)
 
-    def create_new_jwt(self, kid=None):
+    def create_new_jwk(self, kid=None):
         """add key to keyring with kid"""
         # if no kid passed to member function, generate random using uuid func
         if not kid:
@@ -46,7 +51,7 @@ def util_get_modu_and_exp_base64(public_key) -> tuple(2):
     modul_b64 = base64.urlsafe_b64encode(modul_bytes).decode('utf-8')
 
     exp_int = public_key.public_numbers().e
-    # calculate byte length of modulus
+    # calculate byte length of exponent
     exp_byte_length = (exp_int.bit_length() + 7 ) // 8
     exp_bytes = exp_int.to_bytes(exp_byte_length)
     exp_b64 = base64.urlsafe_b64encode(exp_bytes).decode('utf-8')

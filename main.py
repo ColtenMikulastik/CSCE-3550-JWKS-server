@@ -16,12 +16,12 @@ async def get_jwks():
     """ reply with keys """
     # init keyring
     key_ring = keys.Key_Ring()
-    key_ring.create_new_jwt()
-    key_ring.create_new_jwt()
-    key_ring.create_new_jwt()
-    key_ring.create_new_jwt()
-    key_ring.create_new_jwt()
-    key_ring.create_new_jwt()
+    key_ring.create_new_jwk()
+    key_ring.create_new_jwk()
+    key_ring.create_new_jwk()
+    key_ring.create_new_jwk()
+    key_ring.create_new_jwk()
+    key_ring.create_new_jwk()
     return {"keys": key_ring}
 
 if __name__ == "__main__":
