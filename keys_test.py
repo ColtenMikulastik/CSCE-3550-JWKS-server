@@ -10,13 +10,13 @@ class TestKeyRing(unittest.TestCase):
     def test_create_new_jwk_with_kid(self):
         """Test creating a new JWT key with a specific kid"""
         kid = "test-key-id"
-        self.key_ring.create_new_jwk(kid)
+        self.key_ring.create_new_jwt(kid)
         
         # Check that we have one key
         self.assertEqual(len(self.key_ring.key_list), 1)
         
         # Check key properties
-        key = self.key_ring.key_list[0]
+        key = self.key_ring.key_list[0]["jwk"]
         self.assertEqual(key["kty"], "RSA")
         self.assertEqual(key["use"], "sig")
         self.assertEqual(key["kid"], kid)
@@ -26,13 +26,13 @@ class TestKeyRing(unittest.TestCase):
         
     def test_create_new_jwk_without_kid(self):
         """Test creating a new JWT key without specifying kid (should auto-generate)"""
-        self.key_ring.create_new_jwk()
+        self.key_ring.create_new_jwt()
         
         # Check that we have one key
         self.assertEqual(len(self.key_ring.key_list), 1)
         
         # Check key properties
-        key = self.key_ring.key_list[0]
+        key = self.key_ring.key_list[0]["jwk"]
         self.assertEqual(key["kty"], "RSA")
         self.assertEqual(key["use"], "sig")
         self.assertIsInstance(key["kid"], str)  # Should be auto-generated
@@ -42,20 +42,20 @@ class TestKeyRing(unittest.TestCase):
     
     def test_multiple_keys(self):
         """Test creating multiple keys"""
-        self.key_ring.create_new_jwk("key1")
-        self.key_ring.create_new_jwk("key2")
-        self.key_ring.create_new_jwk()
+        self.key_ring.create_new_jwt("key1")
+        self.key_ring.create_new_jwt("key2")
+        self.key_ring.create_new_jwt()
         
         # Check that we have three keys
         self.assertEqual(len(self.key_ring.key_list), 3)
         
         # Check each key has proper structure
         for key in self.key_ring.key_list:
-            self.assertEqual(key["kty"], "RSA")
-            self.assertEqual(key["use"], "sig")
-            self.assertEqual(key["alg"], "RS256")
-            self.assertIn("n", key)
-            self.assertIn("e", key)
+            self.assertEqual(key["jwk"]["kty"], "RSA")
+            self.assertEqual(key["jwk"]["use"], "sig")
+            self.assertEqual(key["jwk"]["alg"], "RS256")
+            self.assertIn("n", key["jwk"])
+            self.assertIn("e", key["jwk"])
     
     def test_util_get_modu_and_exp_base64(self):
         """Test the utility function for base64 encoding"""
@@ -88,9 +88,9 @@ class TestKeyRing(unittest.TestCase):
     def test_key_structure_integrity(self):
         """Test that generated keys maintain proper structure"""
         # Create a key
-        self.key_ring.create_new_jwk("test-key")
+        self.key_ring.create_new_jwt("test-key")
         
-        key = self.key_ring.key_list[0]
+        key = self.key_ring.key_list[0]["jwk"]
         
         # Check all required fields are present and have correct types
         self.assertIn("kty", key)

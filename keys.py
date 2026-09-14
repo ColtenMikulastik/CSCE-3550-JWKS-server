@@ -3,6 +3,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 import datetime as dt
 import uuid
 import base64
+import jwt
 
 # key exponent (usually 65537), and key_size above 1024 (breakable): https://cryptography.io/en/latest/hazmat/primitives/asymmetric/rsa/
 PUBLIC_EXPONENT = 65537
@@ -11,13 +12,11 @@ KEY_SIZE = 2048
 class Key_Ring:
     """ class to store jwt keys and operate on them """
     # structure: list of JWKs(dict)
-    def __init__(self, expiry=24):
-        self.key_list = list()
-        self.expiry = expiry
+    def __init__(self):
         # store as ADT, decode when read, print pretty, but also comparisons will be easier
-        self.time_stamp = dt.datetime.now(dt.timezone.utc)
+        self.key_list = list()
 
-    def create_new_jwk(self, kid=None):
+    def create_new_jwt(self, kid=None, expiry=24):
         """add key to keyring with kid"""
         # if no kid passed to member function, generate random using uuid func
         if not kid:
@@ -37,10 +36,54 @@ class Key_Ring:
             "use": "sig", # assuming signature for now
             "kid": kid,
             "n" : modu_exp_b64[0], # public key modulo 
-            "e": modu_exp_b64[1], # public key exponent
+            "e": modu_exp_b64[1], # public key ex
             "alg": "RS256",
         }
-        self.key_list.append(jwk)
+
+        # init timestamp data, used twice...
+        init_at = dt.datetime.now()
+        exp_at = dt.datetime.now() + dt.timedelta(hours=expiry)
+
+        # create the jwt
+        jwt_wrapper = {
+            "iat": init_at,
+            "exp": exp_at,
+            "cnf": {
+                "jwk": jwk
+            }
+        }
+
+        # generate the jwt using the jwk
+        private_key_pem = private_key
+        complete_jwt = jwt.encode(jwt_wrapper, private_key_pem, algorithm="RS256")
+        # I'm gonna store the Jwt as a key in the JWK dictionary entry 
+        self.key_list.append(
+            {
+                "jwk" : jwk,
+                "jwt": complete_jwt,
+                "iat": init_at,
+                "exp": exp_at
+            }
+        )
+    
+    def get_unexpired_keys(self):
+        """ look through keys find ones that aren't expired yet """
+        # grab current dt
+        cur_time = dt.datetime.now()
+
+        # create output key list and loop comparing the exp values
+        out_key_list = list()
+        for key_entry in self.key_list:
+            if key_entry["exp"] > cur_time:
+                out_key_list.append(key_entry["jwk"])
+            else:
+                # if its expired then pass and continue looking
+                continue
+        return out_key_list
+            
+                
+                
+
 
 
 def util_get_modu_and_exp_base64(public_key) -> tuple(2):
