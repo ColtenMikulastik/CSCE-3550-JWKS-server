@@ -15,13 +15,16 @@ class Key_Ring:
     def __init__(self):
         # store as ADT, decode when read, print pretty, but also comparisons will be easier
         self.key_list = list()
+        self.private_key_list = dict()
 
-    def create_new_jwt(self, kid=None, expiry=24):
+    def create_new_jwk(self, kid=None, expiry=24):
         """add key to keyring with kid"""
         # if no kid passed to member function, generate random using uuid func
         if not kid:
             kid = str(uuid.uuid1())
 
+        # TODO: check if kid already exist
+        
         # generate keys
         private_key = rsa.generate_private_key(
             public_exponent=PUBLIC_EXPONENT,
@@ -31,6 +34,11 @@ class Key_Ring:
         # converting our ints to b64 url safe encoded values
         modu_exp_b64 = util_get_modu_and_exp_base64(private_key.public_key())
         
+
+        # init timestamp data, used twice...
+        init_at = dt.datetime.now()
+        exp_at = dt.datetime.now() + dt.timedelta(hours=expiry)
+
         jwk = {
             "kty": "RSA", # always gonna be rsa
             "use": "sig", # assuming signature for now
@@ -38,35 +46,13 @@ class Key_Ring:
             "n" : modu_exp_b64[0], # public key modulo 
             "e": modu_exp_b64[1], # public key ex
             "alg": "RS256",
+            "iat": int(init_at.timestamp()),
+            "exp": int(exp_at.timestamp())
         }
-
-        # init timestamp data, used twice...
-        init_at = dt.datetime.now()
-        exp_at = dt.datetime.now() + dt.timedelta(hours=expiry)
-
-        # create the jwt
-        jwt_wrapper = {
-            "iat": init_at,
-            "exp": exp_at,
-            "cnf": {
-                "jwk": jwk
-            }
-        }
-
-        # generate the jwt using the jwk
-        private_key_pem = private_key
-        complete_jwt = jwt.encode(jwt_wrapper, private_key_pem, algorithm="RS256")
-        # I'm gonna store the Jwt as a key in the JWK dictionary entry 
-        self.key_list.append(
-            {
-                "jwk" : jwk,
-                "jwt": complete_jwt,
-                "iat": init_at,
-                "exp": exp_at
-            }
-        )
+        self.private_key_list[kid] = private_key
+        self.key_list.append(jwk)
     
-    def get_unexpired_keys(self):
+    def get_keys(self, expired=False):
         """ look through keys find ones that aren't expired yet """
         # grab current dt
         cur_time = dt.datetime.now()
@@ -74,16 +60,12 @@ class Key_Ring:
         # create output key list and loop comparing the exp values
         out_key_list = list()
         for key_entry in self.key_list:
-            if key_entry["exp"] > cur_time:
-                out_key_list.append(key_entry["jwk"])
+            if key_entry["exp"] > int(cur_time.timestamp()):
+                out_key_list.append(key_entry)
             else:
                 # if its expired then pass and continue looking
                 continue
         return out_key_list
-            
-                
-                
-
 
 
 def util_get_modu_and_exp_base64(public_key) -> tuple(2):
