@@ -1,8 +1,8 @@
 
 from fastapi import FastAPI
-import keys
-import uvicorn 
 import datetime as dt
+import uvicorn
+import keys
 import jwt
 
 app = FastAPI()
@@ -44,7 +44,7 @@ async def auth_handler(expired: str | None = None):
         jwt = create_jwt(expiry=0, expired=True)
     else:
         jwt = create_jwt(expiry=24)
-    return { "new jtk created": jwt }
+    return { "token": jwt }
 
 
 @app.get("/")

@@ -21,4 +21,4 @@
 - [x] 0.4.0: Authentication Endpoint
     - creates JWT using JWK to sign,
     - when expired is present, signs expired JWT with an expired JWK
-- [ ] 0.5.0: Complete Implementation & Testing
+- [x] 0.5.0: Complete Implementation & Testing
