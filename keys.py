@@ -60,7 +60,7 @@ class Key_Ring:
         # create output key list and loop comparing the exp values
         out_key_list = list()
         for key_entry in self.key_list:
-            if key_entry["exp"] > int(cur_time.timestamp()):
+            if key_entry["exp"] > int(cur_time.timestamp()) != expired: # compair, and flip if we are looking for expired
                 out_key_list.append(key_entry)
             else:
                 # if its expired then pass and continue looking

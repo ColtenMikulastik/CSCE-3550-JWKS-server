@@ -5,12 +5,10 @@ import uvicorn
 import datetime as dt
 import jwt
 
-
 app = FastAPI()
 key_ring = keys.Key_Ring()
 key_ring.create_new_jwk()
 key_ring.create_new_jwk(expiry=0)
-
 
 def create_jwt(expiry=24, expired=False):
     """ creates a jwt, can make it expired if you want """
@@ -19,7 +17,7 @@ def create_jwt(expiry=24, expired=False):
 
     # pull our jwk to sign here either expired or not
     # grab the first key
-    jwk = key_ring.get_keys()[0]
+    jwk = key_ring.get_keys(expired=expired)[0]
     
     # create the jwt
     jwt_wrapper = {
@@ -39,9 +37,13 @@ def create_jwt(expiry=24, expired=False):
     return complete_jwt
 
 @app.post("/auth")
-async def auth_handler():
+async def auth_handler(expired: str | None = None):
     """ return new JWT, unless expired param """
-    jwt = create_jwt(expiry=24)
+    if expired is not None:
+        # create expired jwt
+        jwt = create_jwt(expiry=0, expired=True)
+    else:
+        jwt = create_jwt(expiry=24)
     return { "new jtk created": jwt }
 
 

@@ -18,5 +18,7 @@
 - [x] 0.3.0: Add Key Expiry Logic
     - key ring holds JWK and JWT
     - key ring holds init time, and expiry
-- [ ] 0.4.0: Authentication Endpoint
+- [x] 0.4.0: Authentication Endpoint
+    - creates JWT using JWK to sign,
+    - when expired is present, signs expired JWT with an expired JWK
 - [ ] 0.5.0: Complete Implementation & Testing
