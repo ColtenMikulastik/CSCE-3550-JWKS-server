@@ -1,4 +1,3 @@
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 import datetime as dt
 import uuid
@@ -17,7 +16,7 @@ class Key_Ring:
         self.key_list = list()
         self.private_key_list = dict()
 
-    def create_new_jwk(self, kid=None, expiry=24):
+    def create_new_jwk(self, kid=None, expiry=24, expired=False):
         """add key to keyring with kid"""
         # if no kid passed to member function, generate random using uuid func
         if not kid:
@@ -37,7 +36,10 @@ class Key_Ring:
 
         # init timestamp data, used twice...
         init_at = dt.datetime.now()
-        exp_at = dt.datetime.now() + dt.timedelta(hours=expiry)
+        if expired:
+            exp_at = dt.datetime.now() - dt.timedelta(1)
+        else:
+            exp_at = dt.datetime.now() + dt.timedelta(hours=expiry)
 
         jwk = {
             "kty": "RSA", # always gonna be rsa
@@ -60,7 +62,7 @@ class Key_Ring:
         # create output key list and loop comparing the exp values
         out_key_list = list()
         for key_entry in self.key_list:
-            if key_entry["exp"] > int(cur_time.timestamp()) != expired: # compair, and flip if we are looking for expired
+            if (key_entry["exp"] > int(cur_time.timestamp())) != expired: # compair, and flip if we are looking for expired
                 out_key_list.append(key_entry)
             else:
                 # if its expired then pass and continue looking

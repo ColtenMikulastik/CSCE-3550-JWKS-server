@@ -8,12 +8,12 @@ import jwt
 app = FastAPI()
 key_ring = keys.Key_Ring()
 key_ring.create_new_jwk()
-key_ring.create_new_jwk(expiry=0)
+key_ring.create_new_jwk(expiry=0, expired=True)
 
 def create_jwt(expiry=24, expired=False):
     """ creates a jwt, can make it expired if you want """
     init_at = dt.datetime.now()
-    exp_at = dt.datetime.now() + dt.timedelta(hours=expiry)
+    exp_at = dt.datetime.now() + dt.timedelta(expiry)
 
     # pull our jwk to sign here either expired or not
     # grab the first key
@@ -21,8 +21,8 @@ def create_jwt(expiry=24, expired=False):
     
     # create the jwt
     jwt_wrapper = {
-        "iat": init_at,
-        "exp": exp_at,
+        "iat": int(init_at.timestamp()),
+        "exp": int(exp_at.timestamp()),
         "cnf": {
             "jwk": jwk
         }
@@ -32,7 +32,12 @@ def create_jwt(expiry=24, expired=False):
 
     # generate the jwt using the jwk
     private_key_pem = private_key
-    complete_jwt = jwt.encode(jwt_wrapper, private_key_pem, algorithm="RS256")
+    complete_jwt = jwt.encode(
+        jwt_wrapper,
+        private_key_pem,
+        algorithm="RS256",
+        headers={"kid": jwk["kid"]}
+    )
     # I'm gonna store the Jwt as a key in the JWK dictionary entry 
     return complete_jwt
 
@@ -58,7 +63,7 @@ async def get_jwks():
     """ reply with keys """
     # init keyring
     key_ring.create_new_jwk()
-    key_ring.create_new_jwk(expiry=0)
+    key_ring.create_new_jwk(expiry=0, expired=True)
     return {"keys": key_ring.get_keys()}
 
 if __name__ == "__main__":
