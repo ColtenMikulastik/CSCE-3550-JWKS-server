@@ -1,6 +1,6 @@
 
 # JWKS Server 
-- run through `uv run fastapi dev`
+- run through `uv run python ./main.py`
 - this server attempts to serve JWT (jots) which are self signed packets of json info, which verify integrity through asymetric keys 
 
 ## Testing
