@@ -6,20 +6,28 @@ import keys
 import jwt
 
 app = FastAPI()
-key_ring = keys.Key_Ring()
+key_ring = keys.KeyRing()
 key_ring.create_new_jwk()
 key_ring.create_new_jwk(expiry=0, expired=True)
 
 def create_jwt(expiry=24, expired=False):
-    """ creates a jwt, can make it expired if you want """
-    init_at = dt.datetime.now()
-    exp_at = dt.datetime.now() + dt.timedelta(expiry)
+    """ creates a jwt, can make it expired if you want that """
+    # get the time
+    init_at = dt.datetime.now(dt.UTC)
+    exp_at = dt.datetime.now(dt.UTC) + dt.timedelta(expiry)
+
 
     # pull our jwk to sign here either expired or not
     # grab the first key
-    jwk = key_ring.get_keys(expired=expired)[0]
+    try:
+        jwk = key_ring.get_keys(expired=expired)[0]
+    except LookupError as e:
+        print(f"create jwt called before jwk: {e}")
+        # create a jwk
+        key_ring.create_new_jwk(expiry=expiry, expired=expired)
+        jwk = key_ring.get_keys(expired=expired)[0]
     
-    # create the jwt
+    # pair our jwk with our jwt
     jwt_wrapper = {
         "iat": int(init_at.timestamp()),
         "exp": int(exp_at.timestamp()),
@@ -27,6 +35,7 @@ def create_jwt(expiry=24, expired=False):
             "jwk": jwk
         }
     }
+
     # get our private key out
     private_key = key_ring.private_key_list[jwk["kid"]]
 
@@ -64,6 +73,8 @@ async def get_jwks():
     # init keyring
     key_ring.create_new_jwk()
     key_ring.create_new_jwk(expiry=0, expired=True)
+    key_ring.create_new_jwk(kid="cat")
+    key_ring.create_new_jwk(kid="cat")
     return {"keys": key_ring.get_keys()}
 
 if __name__ == "__main__":

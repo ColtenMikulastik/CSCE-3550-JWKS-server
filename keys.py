@@ -8,21 +8,29 @@ import jwt
 PUBLIC_EXPONENT = 65537
 KEY_SIZE = 2048
 
-class Key_Ring:
+class KeyRing:
     """ class to store jwt keys and operate on them """
     # structure: list of JWKs(dict)
     def __init__(self):
         # store as ADT, decode when read, print pretty, but also comparisons will be easier
-        self.key_list = list()
-        self.private_key_list = dict()
+        self.key_list = []
+        self.private_key_list = {}
+
+    def is_unique_kid(self, kid) -> bool:
+        """Check if kid is unique in the keyring"""
+        for key_entry in self.key_list:
+            if key_entry["kid"] == kid:
+                return False
+        return True
 
     def create_new_jwk(self, kid=None, expiry=24, expired=False):
         """add key to keyring with kid"""
-        # if no kid passed to member function, generate random using uuid func
+        # if no kid passed to member function or invalid key, generate random using uuid func
         if not kid:
             kid = str(uuid.uuid1())
-
-        # TODO: check if kid already exist
+        elif not self.is_unique_kid(kid):
+            kid = str(uuid.uuid1())
+            print(f"given kid does not satisfy requirements, selecting: {kid}")
         
         # generate keys
         private_key = rsa.generate_private_key(
@@ -35,12 +43,13 @@ class Key_Ring:
         
 
         # init timestamp data, used twice...
-        init_at = dt.datetime.now()
+        init_at = dt.datetime.now(dt.UTC)
         if expired:
-            exp_at = dt.datetime.now() - dt.timedelta(1)
+            exp_at = dt.datetime.now(dt.UTC) - dt.timedelta(1)
         else:
-            exp_at = dt.datetime.now() + dt.timedelta(hours=expiry)
+            exp_at = dt.datetime.now(dt.UTC) + dt.timedelta(hours=expiry)
 
+        # set up our jwk structure
         jwk = {
             "kty": "RSA", # always gonna be rsa
             "use": "sig", # assuming signature for now
@@ -51,26 +60,29 @@ class Key_Ring:
             "iat": int(init_at.timestamp()),
             "exp": int(exp_at.timestamp())
         }
+
+        # hold on to our private key, and append the public to the keyring
         self.private_key_list[kid] = private_key
         self.key_list.append(jwk)
     
-    def get_keys(self, expired=False):
-        """ look through keys find ones that aren't expired yet """
+    def get_keys(self, expired=False) -> list:
+        """ return list of keys, expired if you want that """
         # grab current dt
-        cur_time = dt.datetime.now()
-
+        cur_time = dt.datetime.now(dt.UTC)
         # create output key list and loop comparing the exp values
-        out_key_list = list()
+        out_key_list = []
         for key_entry in self.key_list:
             if (key_entry["exp"] > int(cur_time.timestamp())) != expired: # compair, and flip if we are looking for expired
                 out_key_list.append(key_entry)
             else:
                 # if its expired then pass and continue looking
                 continue
+        if out_key_list == []:
+            raise LookupError("No Keys Bozo")
         return out_key_list
 
-
-def util_get_modu_and_exp_base64(public_key) -> tuple(2):
+def util_get_modu_and_exp_base64(public_key) -> tuple:
+    """ returns the modulus and exponent of a given public key in tuple"""
     modul_int = public_key.public_numbers().n
     # calculate byte length of modulus
     modul_byte_length = (modul_int.bit_length() + 7) // 8 # should be 256

@@ -1,12 +1,12 @@
 import unittest
-from keys import Key_Ring, util_get_modu_and_exp_base64
+from keys import KeyRing, util_get_modu_and_exp_base64
 from cryptography.hazmat.primitives.asymmetric import rsa
 import base64
 import datetime as dt
 
 class TestKeyRing(unittest.TestCase):
     def setUp(self):
-        self.key_ring = Key_Ring()
+        self.key_ring = KeyRing()
     
     def test_create_new_jwk_with_kid(self):
         """Test creating a new JWT key with a specific kid"""
