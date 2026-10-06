@@ -1,8 +1,9 @@
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
 import datetime as dt
 import uuid
 import base64
-import jwt
+import sqlite3
 
 # key exponent (usually 65537), and key_size above 1024 (breakable): https://cryptography.io/en/latest/hazmat/primitives/asymmetric/rsa/
 PUBLIC_EXPONENT = 65537
@@ -15,6 +16,65 @@ class KeyRing:
         # store as ADT, decode when read, print pretty, but also comparisons will be easier
         self.key_list = []
         self.private_key_list = {}
+        # get connection to database
+        self.db_con = sqlite3.connect("totally_not_my_privateKeys.db")
+        cur = self.db_con.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS keys(
+                kid INTEGER PRIMARY KEY AUTOINCREMENT,
+                key BLOB NOT NULL,
+                exp INTEGER NOT NULL
+                )
+        """)
+        # search for 1 expired and non-expired key
+        cur_time = int(dt.datetime.now(dt.UTC).timestamp())
+        res = cur.execute("SELECT kid FROM keys WHERE exp < ?", (cur_time,))
+        if res.fetchall() is None:
+            # create an expired key
+            self.create_new_jwk(expiry=0, expired=True)
+        
+        res = cur.execute("SELECT kid FROM keys WHERE exp > ?", (cur_time, ))
+        if res.fetchall() is None:
+            # create a non-expired key
+            self.create_new_jwk(expiry=24)
+
+        # extract all keys (maybe if they dont already exist?)
+        res = cur.execute("SELECT * from keys")
+        for extracted_key in res.fetchall():
+            self.generate_key(*extracted_key)
+
+        
+        # so the keys in database should track the live keys exactly at run time
+
+    def generate_key(self, kid, private_bytes, exp):
+        """ generates and adds key to keyring from database info """
+        # generate public key
+        # TODO deserialize private key ... 
+        private_key = serialization.load_pem_private_key(
+            private_bytes,
+            password=None
+        )
+
+        modu_exp_b64 = util_get_modu_and_exp_base64(private_key.public_key())
+
+        # generate timestamp and exp timestamp
+        init_at = dt.datetime.now(dt.UTC)
+
+        # encode our data in dictionary 
+        jwk = {
+            "kty": "RSA", # always gonna be rsa
+            "use": "sig", # assuming signature for now
+            "kid": kid,
+            "n" : modu_exp_b64[0], # public key modulo 
+            "e": modu_exp_b64[1], # public key ex
+            "alg": "RS256",
+            "iat": int(init_at.timestamp()),
+            "exp": exp
+        }
+        # add key to key ring
+        self.private_key_list[kid] = private_key
+        self.key_list.append(jwk)
+
 
     def is_unique_kid(self, kid) -> bool:
         """Check if kid is unique in the keyring"""
@@ -64,6 +124,12 @@ class KeyRing:
         # hold on to our private key, and append the public to the keyring
         self.private_key_list[kid] = private_key
         self.key_list.append(jwk)
+        # put our key in the database
+        db_ready_key = util_serialize_private_key(self.private_key_list[kid])
+        cur = self.db_con.cursor()
+        cur.execute("INSERT INTO keys VALUES(?, ?, ?)", (kid, db_ready_key, int(exp_at.timestamp())))
+        # commit changes to database
+        self.db_con.commit()
     
     def get_keys(self, expired=False) -> list:
         """ return list of keys, expired if you want that """
@@ -80,6 +146,9 @@ class KeyRing:
         if out_key_list == []:
             raise LookupError("No Keys Bozo")
         return out_key_list
+    
+    def __del__(self):
+        self.db_con.close()
 
 def util_get_modu_and_exp_base64(public_key) -> tuple:
     """ returns the modulus and exponent of a given public key in tuple"""
@@ -97,3 +166,13 @@ def util_get_modu_and_exp_base64(public_key) -> tuple:
 
     # return both decoded/encoded numbers
     return (modul_b64, exp_b64)
+
+
+def util_serialize_private_key(private_key):
+    """ takes a private key """
+    pem_private_key = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    return pem_private_key

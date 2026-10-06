@@ -7,8 +7,6 @@ import jwt
 
 app = FastAPI()
 key_ring = keys.KeyRing()
-key_ring.create_new_jwk()
-key_ring.create_new_jwk(expiry=0, expired=True)
 
 def create_jwt(expiry=24, expired=False):
     """ creates a jwt, can make it expired if you want that """
@@ -71,10 +69,6 @@ async def root():
 async def get_jwks():
     """ reply with keys """
     # init keyring
-    key_ring.create_new_jwk()
-    key_ring.create_new_jwk(expiry=0, expired=True)
-    key_ring.create_new_jwk(kid="cat")
-    key_ring.create_new_jwk(kid="cat")
     return {"keys": key_ring.get_keys()}
 
 if __name__ == "__main__":
