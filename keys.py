@@ -1,9 +1,10 @@
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 import datetime as dt
-import uuid
+import random
 import base64
 import sqlite3
+import copy
 
 # key exponent (usually 65537), and key_size above 1024 (breakable): https://cryptography.io/en/latest/hazmat/primitives/asymmetric/rsa/
 PUBLIC_EXPONENT = 65537
@@ -29,12 +30,12 @@ class KeyRing:
         # search for 1 expired and non-expired key
         cur_time = int(dt.datetime.now(dt.UTC).timestamp())
         res = cur.execute("SELECT kid FROM keys WHERE exp < ?", (cur_time,))
-        if res.fetchall() is None:
+        if not res.fetchall():
             # create an expired key
             self.create_new_jwk(expiry=0, expired=True)
         
         res = cur.execute("SELECT kid FROM keys WHERE exp > ?", (cur_time, ))
-        if res.fetchall() is None:
+        if not res.fetchall():
             # create a non-expired key
             self.create_new_jwk(expiry=24)
 
@@ -49,7 +50,6 @@ class KeyRing:
     def generate_key(self, kid, private_bytes, exp):
         """ generates and adds key to keyring from database info """
         # generate public key
-        # TODO deserialize private key ... 
         private_key = serialization.load_pem_private_key(
             private_bytes,
             password=None
@@ -86,10 +86,10 @@ class KeyRing:
     def create_new_jwk(self, kid=None, expiry=24, expired=False):
         """add key to keyring with kid"""
         # if no kid passed to member function or invalid key, generate random using uuid func
-        if not kid:
-            kid = str(uuid.uuid1())
+        if not kid or not isinstance(kid, int):
+            kid = random.getrandbits(16)
         elif not self.is_unique_kid(kid):
-            kid = str(uuid.uuid1())
+            kid = random.getrandbits(16)
             print(f"given kid does not satisfy requirements, selecting: {kid}")
         
         # generate keys
@@ -101,7 +101,6 @@ class KeyRing:
         # converting our ints to b64 url safe encoded values
         modu_exp_b64 = util_get_modu_and_exp_base64(private_key.public_key())
         
-
         # init timestamp data, used twice...
         init_at = dt.datetime.now(dt.UTC)
         if expired:
@@ -127,7 +126,7 @@ class KeyRing:
         # put our key in the database
         db_ready_key = util_serialize_private_key(self.private_key_list[kid])
         cur = self.db_con.cursor()
-        cur.execute("INSERT INTO keys VALUES(?, ?, ?)", (kid, db_ready_key, int(exp_at.timestamp())))
+        cur.execute("INSERT INTO keys VALUES(?, ?, ?)", (int(kid), db_ready_key, int(exp_at.timestamp())))
         # commit changes to database
         self.db_con.commit()
     
@@ -139,7 +138,10 @@ class KeyRing:
         out_key_list = []
         for key_entry in self.key_list:
             if (key_entry["exp"] > int(cur_time.timestamp())) != expired: # compair, and flip if we are looking for expired
-                out_key_list.append(key_entry)
+                # interesting evil bug of pain
+                key_copy = copy.deepcopy(key_entry)
+                key_copy["kid"] = str(key_entry["kid"])
+                out_key_list.append(key_copy)
             else:
                 # if its expired then pass and continue looking
                 continue

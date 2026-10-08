@@ -22,9 +22,11 @@
     - creates JWT using JWK to sign,
     - when expired is present, signs expired JWT with an expired JWK
 - [x] 1.0.0: Complete Implementation & Testing
-- [ ] 1.1.0: Add DB to project
+- [x] 1.1.0: Add DB to project
     - create/connect to database
     - all data to be persisitant stored in database
 - [ ] 1.2.0: Secure queiries 
-    - all calls to database are sanitized
+    - all calls to database are sanitized (theoretically this is true with parameterized queires)
 - [ ] 2.0.0: Coplete Implmentation and testing 
+    - fix webserv test
+    - fix keys test
