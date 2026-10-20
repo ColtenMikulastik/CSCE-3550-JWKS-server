@@ -1,9 +1,11 @@
 
-from fastapi import FastAPI, Query
 import datetime as dt
-import uvicorn
-import keys
+
 import jwt
+import uvicorn
+from fastapi import FastAPI, Query
+
+import keys
 
 app = FastAPI()
 key_ring = keys.KeyRing()
@@ -25,6 +27,10 @@ def create_jwt(expiry=24, expired=False):
         jwk = key_ring.get_keys(expired=expired)[0]
     
     kid_int = int(jwk["kid"])
+
+    # an "expired" token must actually be expired, so use the key's own expiry
+    if expired:
+        exp_at = dt.datetime.fromtimestamp(jwk["exp"], dt.UTC)
     
     # pair our jwk with our jwt
     jwt_wrapper = {

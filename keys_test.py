@@ -1,23 +1,72 @@
-import unittest
-from keys import KeyRing, util_get_modu_and_exp_base64
-from cryptography.hazmat.primitives.asymmetric import rsa
 import base64
-import datetime as dt
+import os
+import sqlite3
+import tempfile
+import unittest
+
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+from keys import KeyRing, util_get_modu_and_exp_base64
+
 
 class TestKeyRing(unittest.TestCase):
     def setUp(self):
-        self.key_ring = KeyRing()
+        # isolated db per test so we never touch the real key file
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.db_path = os.path.join(self.tmp_dir.name, "test.db")
+        self.key_ring = KeyRing(db_path=self.db_path)
+        # constructor seeds one expired and one valid key
+        self.base = len(self.key_ring.key_list)
+
+    def tearDown(self):
+        self.key_ring.db_con.close()
+        self.tmp_dir.cleanup()
+
+    def test_seeded_keys(self):
+        """Constructor stores one expired and one valid key"""
+        self.assertEqual(self.base, 2)
+        self.assertEqual(len(self.key_ring.get_keys()), 1)
+        self.assertEqual(len(self.key_ring.get_keys(expired=True)), 1)
+
+    def test_keys_persist_in_db(self):
+        """A new KeyRing on the same db reloads the same keys"""
+        self.key_ring.create_new_jwk()
+        kids = {k["kid"] for k in self.key_ring.key_list}
+        other = KeyRing(db_path=self.db_path)
+        self.assertEqual({k["kid"] for k in other.key_list}, kids)
+        other.db_con.close()
+
+    def test_stored_as_pem_blob(self):
+        """Rows in the db hold PEM private keys"""
+        con = sqlite3.connect(self.db_path)
+        rows = con.execute("SELECT key FROM keys").fetchall()
+        con.close()
+        self.assertEqual(len(rows), self.base)
+        for (blob,) in rows:
+            self.assertTrue(blob.startswith(b"-----BEGIN PRIVATE KEY-----"))
+
+    def test_get_keys_no_match_raises(self):
+        """Asking for a category with no keys raises LookupError"""
+        self.key_ring.key_list = []
+        with self.assertRaises(LookupError):
+            self.key_ring.get_keys()
+
+    def test_is_unique_kid(self):
+        """kid uniqueness check"""
+        used = self.key_ring.key_list[0]["kid"]
+        self.assertFalse(self.key_ring.is_unique_kid(used))
+        self.assertTrue(self.key_ring.is_unique_kid(10**9))
     
     def test_create_new_jwk_with_kid(self):
         """Test creating a new JWT key with a specific kid"""
-        kid = "test-key-id"
+        kid = 424242
         self.key_ring.create_new_jwk(kid)
         
         # Check that we have one key
-        self.assertEqual(len(self.key_ring.key_list), 1)
+        self.assertEqual(len(self.key_ring.key_list), self.base + 1)
         
         # Check key properties
-        key = self.key_ring.key_list[0]
+        key = self.key_ring.key_list[-1]
         self.assertEqual(key["kty"], "RSA")
         self.assertEqual(key["use"], "sig")
         self.assertEqual(key["kid"], kid)
@@ -30,25 +79,25 @@ class TestKeyRing(unittest.TestCase):
         self.key_ring.create_new_jwk()
         
         # Check that we have one key
-        self.assertEqual(len(self.key_ring.key_list), 1)
+        self.assertEqual(len(self.key_ring.key_list), self.base + 1)
         
         # Check key properties
-        key = self.key_ring.key_list[0]
+        key = self.key_ring.key_list[-1]
         self.assertEqual(key["kty"], "RSA")
         self.assertEqual(key["use"], "sig")
-        self.assertIsInstance(key["kid"], str)  # Should be auto-generated
+        self.assertIsInstance(key["kid"], int)  # assigned by the db
         self.assertEqual(key["alg"], "RS256")
         self.assertIn("n", key)  # modulus
         self.assertIn("e", key)   # exponent
     
     def test_multiple_keys(self):
         """Test creating multiple keys"""
-        self.key_ring.create_new_jwk("key1")
-        self.key_ring.create_new_jwk("key2")
+        self.key_ring.create_new_jwk(1001)
+        self.key_ring.create_new_jwk(1002)
         self.key_ring.create_new_jwk()
         
         # Check that we have three keys
-        self.assertEqual(len(self.key_ring.key_list), 3)
+        self.assertEqual(len(self.key_ring.key_list), self.base + 3)
         
         # Check each key has proper structure
         for key in self.key_ring.key_list:
@@ -98,9 +147,9 @@ class TestKeyRing(unittest.TestCase):
     def test_key_structure_integrity(self):
         """Test that generated keys maintain proper structure"""
         # Create a key
-        self.key_ring.create_new_jwk("test-key")
+        self.key_ring.create_new_jwk(555)
         
-        key = self.key_ring.key_list[0]
+        key = self.key_ring.key_list[-1]
         
         # Check all required fields are present and have correct types
         self.assertIn("kty", key)
@@ -110,7 +159,7 @@ class TestKeyRing(unittest.TestCase):
         self.assertEqual(key["use"], "sig")
         
         self.assertIn("kid", key)
-        self.assertIsInstance(key["kid"], str)
+        self.assertIsInstance(key["kid"], int)
         
         self.assertIn("n", key)
         self.assertIsInstance(key["n"], str)

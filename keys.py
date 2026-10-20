@@ -1,24 +1,25 @@
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
-import datetime as dt
-import random
 import base64
-import sqlite3
 import copy
+import datetime as dt
+import sqlite3
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 # key exponent (usually 65537), and key_size above 1024 (breakable): https://cryptography.io/en/latest/hazmat/primitives/asymmetric/rsa/
+DB_FILE = "totally_not_my_privateKeys.db"
 PUBLIC_EXPONENT = 65537
 KEY_SIZE = 2048
 
 class KeyRing:
     """ class to store jwt keys and operate on them """
     # structure: list of JWKs(dict)
-    def __init__(self):
+    def __init__(self, db_path=DB_FILE):
         # store as ADT, decode when read, print pretty, but also comparisons will be easier
         self.key_list = []
         self.private_key_list = {}
         # get connection to database
-        self.db_con = sqlite3.connect("totally_not_my_privateKeys.db")
+        self.db_con = sqlite3.connect(db_path)
         cur = self.db_con.cursor()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS keys(
@@ -27,24 +28,18 @@ class KeyRing:
                 exp INTEGER NOT NULL
                 )
         """)
-        # search for 1 expired and non-expired key
-        cur_time = int(dt.datetime.now(dt.UTC).timestamp())
-        res = cur.execute("SELECT kid FROM keys WHERE exp < ?", (cur_time,))
-        if not res.fetchall():
-            # create an expired key
-            self.create_new_jwk(expiry=0, expired=True)
-        
-        res = cur.execute("SELECT kid FROM keys WHERE exp > ?", (cur_time, ))
-        if not res.fetchall():
-            # create a non-expired key
-            self.create_new_jwk(expiry=24)
-
-        # extract all keys (maybe if they dont already exist?)
-        res = cur.execute("SELECT * from keys")
+        # load every stored key into memory first
+        res = cur.execute("SELECT kid, key, exp FROM keys")
         for extracted_key in res.fetchall():
             self.generate_key(*extracted_key)
 
-        
+        # make sure at least 1 expired and 1 valid key exist (for POST:/auth)
+        cur_time = int(dt.datetime.now(dt.UTC).timestamp())
+        if not any(k["exp"] <= cur_time for k in self.key_list):
+            self.create_new_jwk(expiry=0, expired=True)
+        if not any(k["exp"] > cur_time for k in self.key_list):
+            self.create_new_jwk(expiry=24)
+
         # so the keys in database should track the live keys exactly at run time
 
     def generate_key(self, kid, private_bytes, exp):
@@ -85,13 +80,11 @@ class KeyRing:
 
     def create_new_jwk(self, kid=None, expiry=24, expired=False):
         """add key to keyring with kid"""
-        # if no kid passed to member function or invalid key, generate random using uuid func
-        if not kid or not isinstance(kid, int):
-            kid = random.getrandbits(16)
-        elif not self.is_unique_kid(kid):
-            kid = random.getrandbits(16)
-            print(f"given kid does not satisfy requirements, selecting: {kid}")
-        
+        # only honor a caller supplied kid if it is an unused int,
+        # otherwise let sqlite assign one (guarantees uniqueness vs the db)
+        if not isinstance(kid, int) or isinstance(kid, bool) or not self.is_unique_kid(kid):
+            kid = None
+
         # generate keys
         private_key = rsa.generate_private_key(
             public_exponent=PUBLIC_EXPONENT,
@@ -108,6 +101,16 @@ class KeyRing:
         else:
             exp_at = dt.datetime.now(dt.UTC) + dt.timedelta(hours=expiry)
 
+        # put our key in the database (parameterized, never string built)
+        db_ready_key = util_serialize_private_key(private_key)
+        cur = self.db_con.cursor()
+        cur.execute(
+            "INSERT INTO keys(kid, key, exp) VALUES(?, ?, ?)",
+            (kid, db_ready_key, int(exp_at.timestamp()))
+        )
+        kid = cur.lastrowid
+        self.db_con.commit()
+
         # set up our jwk structure
         jwk = {
             "kty": "RSA", # always gonna be rsa
@@ -123,12 +126,6 @@ class KeyRing:
         # hold on to our private key, and append the public to the keyring
         self.private_key_list[kid] = private_key
         self.key_list.append(jwk)
-        # put our key in the database
-        db_ready_key = util_serialize_private_key(self.private_key_list[kid])
-        cur = self.db_con.cursor()
-        cur.execute("INSERT INTO keys VALUES(?, ?, ?)", (int(kid), db_ready_key, int(exp_at.timestamp())))
-        # commit changes to database
-        self.db_con.commit()
     
     def get_keys(self, expired=False) -> list:
         """ return list of keys, expired if you want that """

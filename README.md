@@ -25,8 +25,15 @@
 - [x] 1.1.0: Add DB to project
     - create/connect to database
     - all data to be persisitant stored in database
-- [ ] 1.2.0: Secure queiries 
+- [x] 1.2.0: Secure queiries 
     - all calls to database are sanitized (theoretically this is true with parameterized queires)
-- [ ] 2.0.0: Coplete Implmentation and testing 
+- [x] 2.0.0: Coplete Implmentation and testing 
     - fix webserv test
     - fix keys test
+
+
+*V2 co-authored by Claude*
+- test cases majority written with help
+    - adjustment of test cases to
+- architecutre of access to database defined
+- normalization of functions to use database
