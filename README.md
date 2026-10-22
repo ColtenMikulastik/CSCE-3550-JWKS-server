@@ -21,4 +21,19 @@
 - [x] 0.4.0: Authentication Endpoint
     - creates JWT using JWK to sign,
     - when expired is present, signs expired JWT with an expired JWK
-- [x] 0.5.0: Complete Implementation & Testing
+- [x] 1.0.0: Complete Implementation & Testing
+- [x] 1.1.0: Add DB to project
+    - create/connect to database
+    - all data to be persisitant stored in database
+- [x] 1.2.0: Secure queiries 
+    - all calls to database are sanitized (theoretically this is true with parameterized queires)
+- [x] 2.0.0: Coplete Implmentation and testing 
+    - fix webserv test
+    - fix keys test
+
+
+*V2 co-authored by Claude*
+- test cases majority written with help
+    - adjustment of test cases to
+- architecutre of access to database defined
+- normalization of functions to use database

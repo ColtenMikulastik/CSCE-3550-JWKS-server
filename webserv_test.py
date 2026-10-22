@@ -1,9 +1,11 @@
-import unittest
-from fastapi.testclient import TestClient
-from main import app
-import json
-import jwt
 import datetime
+import unittest
+
+import jwt
+from fastapi.testclient import TestClient
+
+from main import app
+
 
 class TestWebServer(unittest.TestCase):
     def setUp(self):
@@ -145,6 +147,40 @@ class TestWebServer(unittest.TestCase):
             self.assertIn("e", key)
             self.assertIn("alg", key)
             self.assertEqual(key["alg"], "RS256")
+
+    def test_auth_token_verifies_against_jwks(self):
+        """Token signature checks out with the public key served at the JWKS"""
+        token = self.client.post("/auth").json()["token"]
+        kid = jwt.get_unverified_header(token)["kid"]
+        keys = self.client.get("/.well-known/jwks.json").json()["keys"]
+        match = [k for k in keys if k["kid"] == kid]
+        self.assertEqual(len(match), 1)
+        public_key = jwt.PyJWK(match[0]).key
+        decoded = jwt.decode(token, public_key, algorithms=["RS256"])
+        self.assertEqual(decoded["cnf"]["jwk"]["kid"], kid)
+
+    def test_auth_expired_param_returns_expired_jwt(self):
+        """?expired yields a token signed by an expired key, with a past exp"""
+        response = self.client.post("/auth?expired=true")
+        self.assertEqual(response.status_code, 200)
+        token = response.json()["token"]
+        decoded = jwt.decode(token, options={"verify_signature": False})
+        now = int(datetime.datetime.now().timestamp())
+        self.assertLess(decoded["exp"], now)
+        # expired key must not be published in the JWKS
+        kid = jwt.get_unverified_header(token)["kid"]
+        keys = self.client.get("/.well-known/jwks.json").json()["keys"]
+        self.assertNotIn(kid, [k["kid"] for k in keys])
+        with self.assertRaises(jwt.ExpiredSignatureError):
+            pub = jwt.PyJWK({**decoded["cnf"]["jwk"], "kid": kid}).key
+            jwt.decode(token, pub, algorithms=["RS256"])
+
+    def test_jwks_only_contains_unexpired_keys(self):
+        """No key in the JWKS has an exp in the past"""
+        keys = self.client.get("/.well-known/jwks.json").json()["keys"]
+        now = int(datetime.datetime.now().timestamp())
+        for key in keys:
+            self.assertGreater(key["exp"], now)
 
 if __name__ == '__main__':
     unittest.main()
